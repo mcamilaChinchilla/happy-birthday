@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Misión: Encontrar Bananos</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        body, html {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Fondo de Selva */
+        .game-container {
+            width: 100vw;
+            height: 100vh;
+            background-image: url('imagenes/fondo_selva.png');
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        /* Interfaz de usuario */
+        .header {
+            width: 100%;
+            padding: 30px 20px 10px 20px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 35px;
+            text-shadow: 4px 4px 0px #000;
+            margin-bottom: 15px;
+        }
+
+        .counter {
+            color: #fe2969;
+            font-size: 20px;
+            text-shadow: 2px 2px 0px #000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 25px;
+            border: 4px solid #000;
+            display: inline-block;
+        }
+
+        /* Contenedor central para las hojas */
+        .leaves-panel {
+            background-color: rgba(26, 77, 26, 0.7); /* Fondo verde transparente */
+            border: 6px solid #000;
+            border-radius: 20px;
+            padding: 40px;
+            margin-top: 20px;
+            max-width: 950px;
+            z-index: 5;
+            display: flex;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Rejilla de Hojas */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 25px;
+        }
+
+        .leaf-box {
+            width: 110px;
+            height: 110px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .leaf-box:hover:not(.revealed) {
+            transform: scale(1.1);
+        }
+
+        .leaf-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated;
+        }
+
+        /* Estado revelado */
+        .revealed {
+            cursor: default;
+        }
+
+        .revealed .leaf-img {
+            opacity: 0.2;
+            filter: grayscale(1);
+        }
+
+        .item-hidden {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 75%;
+            image-rendering: pixelated;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .revealed .item-hidden {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .error-x {
+            color: #ff0000;
+            font-size: 50px;
+            text-shadow: 3px 3px 0 #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Pantalla de Victoria */
+        .win-screen {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+        }
+
+        .win-screen img {
+            width: 250px;
+            image-rendering: pixelated;
+            margin-bottom: 25px;
+            animation: bounce 0.6s infinite alternate;
+        }
+
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-25px); }
+        }
+
+        .btn-continue {
+            margin-top: 25px;
+            background-color: #fe2969;
+            color: white;
+            padding: 18px 35px;
+            border: 5px solid #000;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            box-shadow: 5px 5px 0px #000;
+        }
+
+        .btn-continue:active {
+            transform: translate(3px, 3px);
+            box-shadow: 2px 2px 0px #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <div class="header">
+            <h1>BUSCA LOS BANANOS</h1>
+            <div class="counter">🍌: <span id="found-count">0</span> / 3</div>
+        </div>
+
+        <div class="leaves-panel">
+            <div class="grid" id="game-grid"></div>
+        </div>
+
+        <div class="win-screen" id="win-screen">
+            <img src="imagenes/ganar.png" alt="¡Ganaste!">
+            <h2 style="font-size: 24px;">¡LO LOGRASTE!</h2>
+            <p style="margin-top: 15px; font-size: 12px; color: #ffff00;">¡Recogiste todos los bananos!</p>
+            <a href="final_historia.html" class="btn-continue">CONTINUAR</a>
+        </div>
+    </div>
+
+    <script>
+        const grid = document.getElementById('game-grid');
+        const countDisplay = document.getElementById('found-count');
+        const winScreen = document.getElementById('win-screen');
+        
+        let found = 0;
+        const totalLeaves = 10;
+        const totalBananas = 3;
+
+        const bananaPositions = [];
+        while(bananaPositions.length < totalBananas) {
+            let r = Math.floor(Math.random() * totalLeaves);
+            if(bananaPositions.indexOf(r) === -1) bananaPositions.push(r);
+        }
+
+        for (let i = 0; i < totalLeaves; i++) {
+            const box = document.createElement('div');
+            box.className = 'leaf-box';
+            
+            const leafImg = document.createElement('img');
+            leafImg.src = 'imagenes/hojas_palma.png';
+            leafImg.className = 'leaf-img';
+            box.appendChild(leafImg);
+
+            if (bananaPositions.includes(i)) {
+                const banana = document.createElement('img');
+                banana.src = 'imagenes/banano.png';
+                banana.className = 'item-hidden';
+                box.appendChild(banana);
+                box.dataset.type = 'banana';
+            } else {
+                const xMark = document.createElement('div');
+                xMark.className = 'item-hidden error-x';
+                xMark.innerText = 'X';
+                box.appendChild(xMark);
+                box.dataset.type = 'error';
+            }
+
+            box.addEventListener('click', function() {
+                if (this.classList.contains('revealed')) return;
+
+                this.classList.add('revealed');
+
+                if (this.dataset.type === 'banana') {
+                    found++;
+                    countDisplay.innerText = found;
+                    if (found === totalBananas) {
+                        setTimeout(() => { winScreen.style.display = 'flex'; }, 600);
+                    }
+                }
+            });
+
+            grid.appendChild(box);
+        }
+    </script>
+</body>
+</html>
