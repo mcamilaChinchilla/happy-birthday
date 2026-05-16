@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nivel 2: Minas de Cristal Dulce (Modo Infinito)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Press Start 2P', cursive; }
+        body, html { height: 100%; overflow: hidden; background-color: #1a0a1d; }
+        
+        .game-container { 
+            width: 100vw; 
+            height: 100vh; 
+            background-image: url('imagenes/fon_cueva.png'); 
+            background-size: cover; 
+            background-position: center; 
+            position: relative; 
+        }
+
+        /* Cursores */
+        .cursor-pico { cursor: url('imagenes/pico_hierro.png') 16 16, auto; }
+        .cursor-pala { cursor: url('imagenes/pala.png') 16 16, auto; }
+
+        .hud { 
+            position: absolute; 
+            top: 20px; 
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px; 
+            z-index: 100; 
+        }
+
+        .counter { 
+            background: rgba(0, 0, 0, 0.8); 
+            color: white; 
+            padding: 12px; 
+            border: 3px solid #fe2969; 
+            font-size: 10px; 
+        }
+
+        .toolbar { 
+            position: absolute; 
+            bottom: 30px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            display: flex; 
+            gap: 20px; 
+            background: rgba(0, 0, 0, 0.5); 
+            padding: 15px; 
+            border: 2px solid #fff; 
+            z-index: 100; 
+        }
+
+        .tool-btn { 
+            width: 70px; 
+            height: 70px; 
+            background: #2e1a4d; 
+            border: 3px solid #000; 
+            cursor: pointer; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            transition: 0.3s;
+        }
+
+        .tool-btn img { width: 60%; image-rendering: pixelated; }
+        .tool-btn.active { background: #fe2969; border-color: #fff; transform: scale(1.1) translateY(-5px); }
+
+        /* Camuflaje */
+        .target-item { position: absolute; transition: opacity 0.4s; image-rendering: pixelated; filter: brightness(0.6); }
+        .item-harina { opacity: 0.12; }
+        .item-azucar { opacity: 0.22; }
+        .target-item:hover { opacity: 0.5; filter: brightness(1.1); }
+        .target-item.collected { display: none; }
+        
+        /* Pantalla Victoria con botón Repetir */
+        .win-screen { 
+            display: none; 
+            position: absolute; 
+            inset: 0; 
+            background: rgba(26, 10, 29, 0.95); 
+            z-index: 200; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            color: white; 
+        }
+
+        .win-screen img { width: 180px; image-rendering: pixelated; margin-bottom: 20px; }
+
+        .btn-retry {
+            background: #fe2969;
+            color: white;
+            padding: 15px 30px;
+            border: 4px solid #000;
+            cursor: pointer;
+            font-size: 12px;
+            box-shadow: 5px 5px 0 #fff;
+            transition: 0.1s;
+        }
+
+        .btn-retry:active {
+            transform: translate(3px, 3px);
+            box-shadow: 2px 2px 0 #fff;
+        }
+
+        /* Estilo que se aplicará cuando se revele la ubicación */
+    .revealing {
+        opacity: 1 !important;
+        filter: brightness(1.5) drop-shadow(0 0 10px #fff) !important;
+        transform: scale(1.2);
+    }
+
+    /* Botón de ayuda en la interfaz */
+    .btn-help {
+        background: #5a3d2b;
+        color: #fff;
+        border: 2px solid #000;
+        padding: 5px 10px;
+        font-size: 8px;
+        cursor: pointer;
+        margin-left: 10px;
+    }
+    </style>
+</head>
+<body>
+
+<div class="game-container" id="game-area">
+    <div class="hud">
+        <div class="counter">CRISTALES: <span id="sugar-count">0</span>/5</div>
+        <div class="counter" style="border-color: #fff;">HARINA: <span id="flour-count">0</span>/2</div>
+        <button class="btn-help" onclick="showHints()">¿AYUDA?</button>
+    </div>
+
+    <div id="items-layer"></div>
+
+    <div class="toolbar">
+        <button class="tool-btn active" id="btn-pico" onclick="setTool('pico')">
+            <img src="imagenes/pico_hierro.png" alt="Pico">
+        </button>
+        <button class="tool-btn" id="btn-pala" onclick="setTool('pala')">
+            <img src="imagenes/pala.png" alt="Pala">
+        </button>
+    </div>
+
+    <div class="win-screen" id="win-screen">
+        <img src="imagenes/alegre.png" alt="Ganaste">
+        <h2 style="margin-bottom: 20px;">¡MINA COMPLETADA!</h2>
+        <button class="btn-retry" onclick="resetGame()">REPETIR NIVEL</button>
+    </div>
+</div>
+
+<script>
+    let currentTool = 'pico';
+    let sugarCollected = 0;
+    let flourCollected = 0;
+
+    const sugarDisplay = document.getElementById('sugar-count');
+    const flourDisplay = document.getElementById('flour-count');
+    const itemsLayer = document.getElementById('items-layer');
+    const winScreen = document.getElementById('win-screen');
+
+    function setTool(tool) {
+        currentTool = tool;
+        document.getElementById('btn-pico').classList.toggle('active', tool === 'pico');
+        document.getElementById('btn-pala').classList.toggle('active', tool === 'pala');
+        document.getElementById('game-area').className = 'game-container ' + (tool === 'pico' ? 'cursor-pico' : 'cursor-pala');
+    }
+
+    function getRandom(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    // Función para crear e instanciar los items
+    function spawnItems() {
+        itemsLayer.innerHTML = ''; // Limpia el nivel anterior
+        
+        // 5 Cristales de Azúcar
+        for(let i = 0; i < 5; i++) {
+            createItem('azucar', getRandom(5, 90), getRandom(10, 50), getRandom(40, 60));
+        }
+
+        // 2 Sacos de Harina
+        for(let i = 0; i < 2; i++) {
+            createItem('harina', getRandom(15, 85), getRandom(75, 90), getRandom(80, 100));
+        }
+    }
+
+    function createItem(type, x, y, size) {
+        const img = document.createElement('img');
+        img.src = type === 'azucar' ? 'imagenes/azucar_cristal.png' : 'imagenes/harina.png';
+        img.className = `target-item item-${type}`;
+        img.style.left = x + '%';
+        img.style.top = y + '%';
+        img.style.width = size + 'px';
+        
+        img.onclick = () => {
+            if (type === 'azucar' && currentTool === 'pico') {
+                sugarCollected++;
+                sugarDisplay.innerText = sugarCollected;
+                img.classList.add('collected');
+            } else if (type === 'harina' && currentTool === 'pala') {
+                flourCollected++;
+                flourDisplay.innerText = flourCollected;
+                img.classList.add('collected');
+            }
+            checkWin();
+        };
+        itemsLayer.appendChild(img);
+    }
+
+    function checkWin() {
+        if (sugarCollected >= 5 && flourCollected >= 2) {
+            setTimeout(() => {
+                winScreen.style.display = 'flex';
+            }, 500);
+        }
+    }
+
+    // FUNCIÓN PARA REVELAR UBICACIÓN
+    function showHints() {
+        // Buscamos todos los items que aún no han sido recolectados
+        const items = document.querySelectorAll('.target-item:not(.collected)');
+        
+        items.forEach(item => {
+            item.classList.add('revealing');
+        });
+
+        // El brillo dura 2 segundos y luego se apaga
+        setTimeout(() => {
+            items.forEach(item => {
+                item.classList.remove('revealing');
+            });
+        }, 2000);
+    }
+
+    // Asegúrate de que el botón de REPETIR también resetee la visibilidad
+    function resetGame() {
+        sugarCollected = 0;
+        flourCollected = 0;
+        sugarDisplay.innerText = '0';
+        flourDisplay.innerText = '0';
+        winScreen.style.display = 'none';
+        setTool('pico');
+        spawnItems();
+    }
+
+    window.onload = spawnItems;
+</script>
+
+</body>
+</html>
