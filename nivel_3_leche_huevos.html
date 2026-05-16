@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nivel 3: Altiplano Central</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Press Start 2P', cursive; }
+        
+        /* FONDO FIJO: Para que siempre se vea la imagen de fondo */
+        body, html { 
+            height: 100%; 
+            overflow: hidden; 
+            background-color: #a3d5ff; 
+            background-image: url('imagenes/fondo_nubes.png');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+
+        #game-viewport {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            justify-content: center;
+        }
+
+        #world {
+            width: 100%;
+            max-width: 800px;
+            height: 4000px; /* Aumentado para dar espacio a la escalada */
+            position: absolute;
+            bottom: 0;
+            transition: bottom 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .hud {
+            position: fixed;
+            top: 20px;
+            width: 100%;
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .progress-bar {
+            background: rgba(255, 255, 255, 0.95);
+            border: 4px solid #000;
+            padding: 10px;
+            font-size: 8px;
+            box-shadow: 4px 4px 0px rgba(0,0,0,0.2);
+        }
+
+        #juanito {
+            position: absolute;
+            width: 80px;
+            z-index: 500;
+            image-rendering: pixelated;
+            transition: left 0.3s, bottom 0.3s;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* CUADRO AZUL TRANSPARENTE: Ahora es el fondo real de la nube */
+        .cloud-wrapper {
+            position: absolute;
+            width: 170px;
+            height: 90px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 150, 255, 0.4); /* Azul más intenso para que se note */
+            border: 3px solid rgba(255, 255, 255, 0.6);
+            border-radius: 12px;
+            box-shadow: 0 0 15px rgba(0, 150, 255, 0.5);
+        }
+
+        .cloud-img { 
+            width: 85%; 
+            image-rendering: pixelated; 
+            z-index: 2;
+        }
+
+        .item {
+            position: absolute;
+            width: 50px;
+            z-index: 600;
+            image-rendering: pixelated;
+            animation: float 1.5s infinite ease-in-out;
+        }
+
+        .item.collected { display: none; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        .lightning {
+            position: absolute;
+            width: 65px;
+            display: none;
+            z-index: 700;
+        }
+
+        .win-screen {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 2000;
+            color: white;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .btn-repeat {
+            background: #fe2969;
+            color: white;
+            padding: 20px 40px;
+            border: 4px solid #fff;
+            cursor: pointer;
+            margin-top: 30px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-viewport">
+    <div class="hud">
+        <div class="progress-bar">LECHE: <span id="milk-count">0</span>/2</div>
+        <div class="progress-bar">HUEVOS: <span id="egg-count">0</span>/3</div>
+    </div>
+
+    <div id="world">
+        <img src="imagenes/juanito_salto.png" id="juanito" alt="Juanito">
+        <div id="entities-container"></div>
+        <img src="imagenes/rayos.png" id="lightning-fx" class="lightning">
+    </div>
+
+    <div class="win-screen" id="win-screen">
+        <h2 style="color: #ffd700;">¡DESAFÍO COMPLETADO!</h2>
+        <p style="margin-top: 20px;">¡Juanito ya puede hornear el pastel!</p>
+        <button class="btn-repeat" onclick="location.reload()">REPETIR NIVEL</button>
+    </div>
+</div>
+
+<script>
+    const world = document.getElementById('world');
+    const entities = document.getElementById('entities-container');
+    const juanito = document.getElementById('juanito');
+    const lightning = document.getElementById('lightning-fx');
+    const milkDisplay = document.getElementById('milk-count');
+    const eggDisplay = document.getElementById('egg-count');
+
+    let currentStep = -1;
+    let milkCollected = 0;
+    let eggsCollected = 0;
+    let isMoving = false;
+
+    // Configuración del camino (8 niveles)
+    const levels = [];
+    for(let i = 0; i < 8; i++) {
+        levels.push({
+            bottom: 400 + (i * 320),
+            leftX: 180, 
+            rightX: 450,
+            correct: Math.random() > 0.5 ? 'left' : 'right',
+            // Distribución: Leche en pasos 1 y 4. Huevos en 2, 5 y 7.
+            item: i === 1 || i === 4 ? 'leche' : (i === 2 || i === 5 || i === 7 ? 'huevo' : null)
+        });
+    }
+
+    function initGame() {
+        entities.innerHTML = '';
+        currentStep = -1;
+        milkCollected = 0;
+        eggsCollected = 0;
+        milkDisplay.innerText = "0";
+        eggDisplay.innerText = "0";
+        
+        // Posición inicial centrada abajo
+        juanito.style.left = "400px";
+        juanito.style.bottom = "80px";
+        world.style.bottom = "0px";
+
+        levels.forEach((lvl, index) => {
+            createCloud(lvl.leftX, lvl.bottom, index, 'left');
+            createCloud(lvl.rightX, lvl.bottom, index, 'right');
+            
+            if(lvl.item) {
+                const targetX = lvl.correct === 'left' ? lvl.leftX : lvl.rightX;
+                createItem(targetX, lvl.bottom, lvl.item, index);
+            }
+        });
+    }
+
+    function createCloud(x, b, step, side) {
+        const div = document.createElement('div');
+        div.className = 'cloud-wrapper';
+        div.style.left = x + 'px';
+        div.style.bottom = b + 'px';
+        div.innerHTML = `<img src="imagenes/nubes.png" class="cloud-img" id="cloud-${step}-${side}">`;
+        entities.appendChild(div);
+    }
+
+    function createItem(x, b, type, step) {
+        const img = document.createElement('img');
+        img.src = type === 'leche' ? 'imagenes/leche.png' : 'imagenes/huevos.png';
+        img.className = 'item';
+        img.id = `item-${step}`;
+        img.style.left = (x + 60) + 'px';
+        img.style.bottom = (b + 85) + 'px';
+        entities.appendChild(img);
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if(isMoving || currentStep >= levels.length - 1) return;
+        if(e.key === 'ArrowLeft') jump('left');
+        if(e.key === 'ArrowRight') jump('right');
+    });
+
+    function jump(side) {
+        isMoving = true;
+        const nextStep = currentStep + 1;
+        const lvl = levels[nextStep];
+        const targetX = side === 'left' ? lvl.leftX : lvl.rightX;
+
+        // Juanito salta a la nube
+        juanito.style.left = (targetX + 45) + 'px';
+        juanito.style.bottom = (lvl.bottom + 65) + 'px';
+
+        // Subir la cámara
+        if(nextStep >= 0) {
+            world.style.bottom = `-${lvl.bottom - 200}px`;
+        }
+
+        setTimeout(() => {
+            if(side === lvl.correct) {
+                currentStep = nextStep;
+                collectItem(nextStep);
+                isMoving = false;
+                
+                // Verificar victoria
+                if(milkCollected >= 2 && eggsCollected >= 3) {
+                    setTimeout(() => document.getElementById('win-screen').style.display = 'flex', 600);
+                }
+            } else {
+                fail(nextStep, side);
+            }
+        }, 350);
+    }
+
+    function collectItem(step) {
+        const item = document.getElementById(`item-${step}`);
+        if(item && !item.classList.contains('collected')) {
+            const type = levels[step].item;
+            if(type === 'leche') milkCollected++;
+            else eggsCollected++;
+            
+            milkDisplay.innerText = milkCollected;
+            eggDisplay.innerText = eggsCollected;
+            item.classList.add('collected');
+        }
+    }
+
+    function fail(step, side) {
+        const cloud = document.getElementById(`cloud-${step}-${side}`);
+        cloud.src = 'imagenes/nubes_oscuras.png';
+        
+        lightning.style.left = juanito.style.left;
+        lightning.style.bottom = (parseInt(juanito.style.bottom) + 20) + 'px';
+        lightning.style.display = 'block';
+
+        setTimeout(() => {
+            lightning.style.display = 'none';
+            cloud.src = 'imagenes/nubes.png';
+            initGame(); // Reiniciar posición
+            isMoving = false;
+        }, 1000);
+    }
+
+    initGame();
+</script>
+
+</body>
+</html>
