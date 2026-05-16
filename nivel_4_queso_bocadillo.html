@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nivel 4: El Santuario del Queso y Bocadillo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Press Start 2P', cursive; }
+        body { background-color: #1a1a1a; overflow: hidden; color: white; }
+
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('imagenes/fondo_templo.png');
+            background-size: cover;
+            position: relative;
+        }
+
+        /* Guardián */
+        #guardian-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+        }
+        #guardian { width: 140px; image-rendering: pixelated; transition: filter 0.3s; }
+        .looking { filter: drop-shadow(0 0 20px red) hue-rotate(300deg); }
+        .sleeping { filter: drop-shadow(0 0 15px #00ff00); }
+
+        /* Baldosas */
+        .tile {
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            border: 4px solid rgba(255,255,255,0.2);
+            transition: 0.3s;
+            image-rendering: pixelated;
+        }
+        .tile.active { 
+            border-color: #fff; 
+            box-shadow: 0 0 30px #ffd700; 
+            background-color: rgba(255, 215, 0, 0.4);
+        }
+
+        #juanito {
+            position: absolute;
+            width: 160px; 
+            bottom: 50px;
+            left: 50px;
+            transition: all 0.1s linear;
+            image-rendering: pixelated;
+            z-index: 100;
+        }
+
+        /* ALTAR VERTICAL CON NOMBRES */
+        .altar {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            text-align: center;
+            z-index: 200;
+            background: rgba(0,0,0,0.95);
+            padding: 25px;
+            border: 5px solid #ffd700;
+            width: 320px;
+        }
+        .pedestal-vertical {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .item-group { text-align: center; margin-bottom: 5px; }
+        .item-group p { font-size: 8px; color: #ffd700; margin-top: 5px; }
+        .final-item { width: 70px; image-rendering: pixelated; animation: float 2s infinite ease-in-out; }
+
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+        #timer-display { color: #ff5252; font-size: 12px; margin-bottom: 15px; }
+        .frozen { filter: grayscale(1) brightness(0.2) sepia(1); pointer-events: none; }
+
+        .win-screen, .fail-screen {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-action { background:#fe2969; color:white; padding:20px; border:4px solid #fff; cursor:pointer; margin-top:20px; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="guardian-container">
+        <p id="guardian-state">EL GUARDIÁN DUERME...</p>
+        <img src="imagenes/robot_templo.png" id="guardian" class="sleeping">
+    </div>
+
+    <div id="tiles-container"></div>
+    <img src="imagenes/pensando.png" id="juanito">
+
+    <div class="altar" id="altar">
+        <div id="timer-display">¡EXTREMO! <span id="time-left">5</span>s</div>
+        
+        <div class="pedestal-vertical">
+            <div class="item-group">
+                <img src="imagenes/bocadillo.png" class="final-item">
+                <p>BOCADILLO</p>
+            </div>
+            <div class="item-group">
+                <img src="imagenes/queso.png" class="final-item">
+                <p>QUESO</p>
+            </div>
+        </div>
+
+        <div style="width:100%; height:20px; border:2px solid white; margin-bottom: 10px;">
+            <div id="bar" style="width:0%; height:100%; background:#00ff00;"></div>
+        </div>
+        <p style="font-size: 8px; color: #fff;">¡SPAM ESPACIO!</p>
+    </div>
+
+    <div class="win-screen" id="win-screen">
+        <h1 style="color:#ffd700;">¡PERFECTO!</h1>
+        <p style="margin-top: 10px;">Misión cumplida.</p>
+        <button class="btn-action" onclick="location.reload()">REINICIAR</button>
+    </div>
+
+    <div class="fail-screen" id="fail-screen">
+        <h1 style="color:#ff5252;">¡LENTO!</h1>
+        <p style="margin-top:10px; font-size:10px;">El tiempo expiró.</p>
+        <button class="btn-action" onclick="location.reload()">REINTENTAR</button>
+    </div>
+</div>
+
+<script>
+    const juanito = document.getElementById('juanito');
+    const guardian = document.getElementById('guardian');
+    const guardianState = document.getElementById('guardian-state');
+    const tilesContainer = document.getElementById('tiles-container');
+    const bar = document.getElementById('bar');
+    const timeLeftSpan = document.getElementById('time-left');
+
+    let isLooking = false;
+    let frozen = false;
+    let tilesActivated = 0;
+    let tapCount = 0;
+    let onAltar = false;
+    let timeLeft = 5; // 5 SEGUNDOS
+    let timerInterval;
+
+    const tileImages = ['baldosa_muffin.png', 'baldosa_galleta.png', 'baldosa_dona.png'];
+
+    function setupTiles() {
+        tileImages.forEach((img, index) => {
+            const tile = document.createElement('div');
+            tile.className = 'tile';
+            tile.style.backgroundImage = `url('imagenes/${img}')`;
+            
+            let x, y;
+            do {
+                x = Math.random() * (window.innerWidth - 120);
+                y = 200 + Math.random() * (window.innerHeight - 350);
+            } while (x > window.innerWidth/2 - 200 && x < window.innerWidth/2 + 200 && y < 300);
+
+            tile.style.left = x + 'px';
+            tile.style.top = y + 'px';
+            tilesContainer.appendChild(tile);
+        });
+    }
+
+    function guardianCycle() {
+        setTimeout(() => {
+            isLooking = !isLooking;
+            guardian.className = isLooking ? 'looking' : 'sleeping';
+            guardianState.innerText = isLooking ? "¡QUIETO!" : "EL GUARDIÁN DUERME...";
+            guardianState.style.color = isLooking ? "red" : "#00ff00";
+            guardianCycle();
+        }, isLooking ? 800 : 2000); // Guardián más rápido también
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (frozen || onAltar) return;
+        if (isLooking && e.key.includes('Arrow')) { freezeJuanito(); return; }
+
+        const step = 65; 
+        let left = juanito.offsetLeft;
+        let top = juanito.offsetTop;
+
+        if (e.key === 'ArrowLeft') left -= step;
+        if (e.key === 'ArrowRight') left += step;
+        if (e.key === 'ArrowUp') top -= step;
+        if (e.key === 'ArrowDown') top += step;
+
+        juanito.style.left = Math.max(0, Math.min(window.innerWidth - 160, left)) + 'px';
+        juanito.style.top = Math.max(0, Math.min(window.innerHeight - 160, top)) + 'px';
+        
+        checkCollision();
+    });
+
+    function checkCollision() {
+        const jRect = juanito.getBoundingClientRect();
+        document.querySelectorAll('.tile:not(.active)').forEach(tile => {
+            const tRect = tile.getBoundingClientRect();
+            if (!(jRect.right < tRect.left || jRect.left > tRect.right || 
+                  jRect.bottom < tRect.top || jRect.top > tRect.bottom)) {
+                tile.classList.add('active');
+                tilesActivated++;
+                if (tilesActivated === 3) setTimeout(startAltarPhase, 400);
+            }
+        });
+    }
+
+    function freezeJuanito() {
+        frozen = true;
+        juanito.classList.add('frozen');
+        setTimeout(() => {
+            frozen = false;
+            juanito.classList.remove('frozen');
+            juanito.style.left = "50px";
+            juanito.style.top = (window.innerHeight - 200) + "px";
+        }, 1200);
+    }
+
+    function startAltarPhase() {
+        onAltar = true;
+        document.getElementById('altar').style.display = 'block';
+        
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            timeLeftSpan.innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                if (tapCount < 100) document.getElementById('fail-screen').style.display = 'flex';
+            }
+        }, 1000);
+    }
+
+    window.addEventListener('keyup', (e) => {
+        if (onAltar && e.code === 'Space' && timeLeft > 0) {
+            tapCount += 8; // Ajustado para que en 5s sea posible llegar a 100
+            bar.style.width = Math.min(tapCount, 100) + '%';
+            if (tapCount >= 100) {
+                clearInterval(timerInterval);
+                document.getElementById('win-screen').style.display = 'flex';
+            }
+        }
+    });
+
+    setupTiles();
+    guardianCycle();
+</script>
+</body>
+</html>
