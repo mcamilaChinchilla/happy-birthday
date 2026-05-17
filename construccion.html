@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Torta del Vínculo - Construcción</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Press Start 2P', cursive; }
+        body { background-color: #1a1a1a; overflow: hidden; color: white; }
+
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), url('imagenes/fondo_construccion.png');
+            background-size: cover;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        #timer-box {
+            position: absolute;
+            top: 20px;
+            font-size: 18px;
+            color: #ff5252;
+            padding: 15px;
+            border: 4px solid #373737;
+            background: #c6c6c6;
+            color: #373737;
+            box-shadow: inset -4px -4px #555, inset 4px 4px #fff;
+        }
+
+        #ui-container {
+            position: relative;
+            width: 504px; 
+            height: 494px;
+            background: url('imagenes/crafteo.png') no-repeat center;
+            background-size: contain;
+            image-rendering: pixelated;
+        }
+
+        /* Cuadrícula de Crafteo 3x3 */
+        #crafting-grid {
+            position: absolute;
+            top: 45px;
+            left: 85px;
+            width: 165px;
+            height: 165px;
+            display: grid;
+            grid-template-columns: repeat(3, 50px);
+            grid-template-rows: repeat(3, 50px);
+            gap: 7px;
+        }
+
+        .craft-slot {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Inventario: Alineado dentro de los cuadros grises */
+        #inventory-grid {
+            position: absolute;
+            top: 305px; /* Bajado un poco más para centrar en los cuadros */
+            left: 25px;
+            display: grid;
+            grid-template-columns: repeat(9, 50px);
+            gap: 4px;
+        }
+
+        .ingredient {
+            width: 40px;
+            height: 40px;
+            cursor: grab;
+            image-rendering: pixelated;
+            z-index: 10;
+        }
+
+        .ingredient:active { cursor: grabbing; }
+
+        /* Torta final central y grande */
+        #torta-final {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 320px; 
+            image-rendering: pixelated;
+            z-index: 2000;
+            filter: drop-shadow(0 0 30px rgba(255, 215, 0, 0.7));
+            animation: spawn 0.6s cubic-bezier(0.17, 0.67, 0.83, 0.67), float 3s infinite ease-in-out;
+        }
+
+        @keyframes spawn {
+            from { transform: translate(-50%, -50%) scale(0); }
+            to { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+            50% { transform: translate(-50%, -50%) translateY(-20px); }
+        }
+
+        .win-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 80px;
+            z-index: 1000;
+        }
+
+        .btn-restart {
+            background: #c6c6c6;
+            color: #373737;
+            padding: 20px;
+            border: 4px solid #373737;
+            box-shadow: inset -4px -4px #555, inset 4px 4px #fff;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="timer-box">TIEMPO: <span id="time-left">20</span>s</div>
+
+    <div id="ui-container">
+        <div id="crafting-grid" ondragover="allowDrop(event)">
+            <div class="craft-slot" ondrop="drop(event, 0)"></div>
+            <div class="craft-slot" ondrop="drop(event, 1)"></div>
+            <div class="craft-slot" ondrop="drop(event, 2)"></div>
+            <div class="craft-slot" ondrop="drop(event, 3)"></div>
+            <div class="craft-slot" ondrop="drop(event, 4)"></div>
+            <div class="craft-slot" ondrop="drop(event, 5)"></div>
+            <div class="craft-slot" ondrop="drop(event, 6)"></div>
+            <div class="craft-slot" ondrop="drop(event, 7)"></div>
+            <div class="craft-slot" ondrop="drop(event, 8)"></div>
+        </div>
+
+        <div id="inventory-grid">
+            <img src="imagenes/banano.png" class="ingredient" id="banano" draggable="true" ondragstart="drag(event)">
+            <img src="imagenes/azucar_cristal.png" class="ingredient" id="azucar" draggable="true" ondragstart="drag(event)">
+            <img src="imagenes/harina.png" class="ingredient" id="harina" draggable="true" ondragstart="drag(event)">
+            <img src="imagenes/leche.png" class="ingredient" id="leche" draggable="true" ondragstart="drag(event)">
+            <img src="imagenes/huevos.png" class="ingredient" id="huevos" draggable="true" ondragstart="drag(event)">
+            <img src="imagenes/queso.png" class="ingredient" id="queso" draggable="true" ondragstart="drag(event)">
+            <img src="imagenes/bocadillo.png" class="ingredient" id="bocadillo" draggable="true" ondragstart="drag(event)">
+        </div>
+    </div>
+</div>
+
+<img src="imagenes/torta_vinculo.png" id="torta-final">
+
+<div class="win-overlay" id="win-screen">
+    <h1 style="color: #ffd700; margin-bottom: 30px;">¡TORTA DEL VÍNCULO CREADA!</h1>
+    <button class="btn-restart" onclick="location.reload()">REINICIAR AVENTURA</button>
+</div>
+
+<script>
+    let timeLeft = 20;
+    let ingredientsInTable = 0;
+    const totalIngredients = 7;
+    const timerElement = document.getElementById('time-left');
+    const tortaFinal = document.getElementById('torta-final');
+    const winScreen = document.getElementById('win-screen');
+
+    const timer = setInterval(() => {
+        timeLeft--;
+        timerElement.innerText = timeLeft;
+        if (timeLeft <= 0) {
+            clearInterval(timer);
+            if (ingredientsInTable < totalIngredients) {
+                alert("¡Se acabó el tiempo!");
+                location.reload();
+            }
+        }
+    }, 1000);
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+    }
+
+    function drag(ev) {
+        ev.dataTransfer.setData("text", ev.target.id);
+    }
+
+    function drop(ev, slotIndex) {
+        ev.preventDefault();
+        const data = ev.dataTransfer.getData("text");
+        const draggedElement = document.getElementById(data);
+        const slot = ev.target.classList.contains('craft-slot') ? ev.target : ev.target.parentElement;
+        
+        if (draggedElement && draggedElement.classList.contains('ingredient') && slot.innerHTML === "") {
+            slot.appendChild(draggedElement);
+            draggedElement.draggable = false;
+            draggedElement.style.cursor = "default";
+            ingredientsInTable++;
+            
+            if (ingredientsInTable === totalIngredients) {
+                completeCake();
+            }
+        }
+    }
+
+    function completeCake() {
+        clearInterval(timer);
+        setTimeout(() => {
+            tortaFinal.style.display = "block";
+            winScreen.style.display = "flex";
+        }, 500);
+    }
+</script>
+
+</body>
+</html>
